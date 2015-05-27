@@ -1,17 +1,31 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python2
 
 import sys
 import numpy
 
 ### Function Definitions ###
 def help():
-    print("Write this good!")
+    print("""Usage: pynabe-sugano.py -d [electrons] -v1 [wavenumber] -v2 [wavenumber] -t [high-energy-excited-state]-[low-energy-excited-state]
+Example:
+    ./pynabe-sugano.py -d 6 -v1 467 -v2 333 --use-nm -t 1T2g-1T1g
+Parameters:
+    -d      Number of d electrons in the complex (determines what diagram to use)
+    -v1     Lower energy peak value in cm^-1 (can take wavelenght if --use-nm is used)
+    -v2     Higher energy peak value in cm^-1 (can take wavelenght if --use-nm is used)
+    -t      Specify what are the excited states of the desired transitions, separated by a '-'
+Options:
+    --help, -h          Display this and quit
+    --about             Display about message and quit
+    --use-nm            Take wavelenght in nm for v1 and v2 inputs
+    --list-states, -ls  used with -d [electrons] to list what are the states for that diagram
+    --quiet, -q         Don't print input options, only results
+""")
     
 def about():
     print("Python script that automates calculations involving Tanabe-Sugano diagrams \nThe task of finding the ratio of the heights of two lines with a ruler and then determining the x and y intercepts in Tanabe-Sugano diagrams is tedious and slow. This script utilizes 'diagrams' in the form of tables and searches for the ratio automatically and then calculates the B Racah parameter and 10Dq.")
     
 def get_diagram(d_electrons):
-    path='resources/diagrams/'
+    path='diagrams/'
     filename='d'+str(d_electrons)+'.csv'
     table=path+filename
     diagram = numpy.genfromtxt(table, names=True)
@@ -30,10 +44,6 @@ def find_transition(diagram, transition):
         if state.lower() == transition[1].lower():
             state2 = index
         index += 1
-    if state1 < state2:
-        a = state2
-        state2 = state1
-        state1 = a
     transition=[state1, state2]
     return transition
     
@@ -154,7 +164,7 @@ def options():
         if opt == "--about":
             about()
             sys.exit(0)
-        if opt == "-quiet" or opt == "-q":
+        if opt == "--quiet" or opt == "-q":
             print_options = False
         if opt == "--verbose":
             verbose = True
