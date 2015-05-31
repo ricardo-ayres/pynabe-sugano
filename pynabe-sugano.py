@@ -1,7 +1,7 @@
 #!/usr/bin/python2
 
 import sys
-import numpy
+import json
 
 ### Function Definitions ###
 def help():
@@ -20,59 +20,70 @@ Options:
     --list-states, -ls  used with -d [electrons] to list what are the states for that diagram
     --quiet, -q         Don't print input options, only results
 """)
+    sys.exit(0)
     
 def about():
     print("Python script that automates calculations involving Tanabe-Sugano diagrams \nThe task of finding the ratio of the heights of two lines with a ruler and then determining the x and y intercepts in Tanabe-Sugano diagrams is tedious and slow. This script utilizes 'diagrams' in the form of tables and searches for the ratio automatically and then calculates the B Racah parameter and 10Dq.")
+    sys.exit(0)
     
 def get_diagram(d_electrons):
     path='diagrams/'
-    filename='d'+str(d_electrons)+'.csv'
-    table=path+filename
-    diagram = numpy.genfromtxt(table, names=True)
+    filename='d'+str(d_electrons)+'.json'
+    table=open(path+filename, 'r')
+    diagram = json.load(table)
+    table.close()
     return diagram
     
 def list_states(diagram):
-    print(diagram.dtype.names[1::])
-    
-def find_transition(diagram, transition):
-    index = 1
-    state1 = ''
-    state2 = ''
-    for state in diagram.dtype.names[1::]:
-        if state.lower() == transition[0].lower():
-            state1 = index
-        if state.lower() == transition[1].lower():
-            state2 = index
-        index += 1
-    transition=[state1, state2]
-    return transition
+    states = list(diagram.keys())
+    if 'deltaB' in states:
+        states.remove('deltaB')
+    print("Available states in this diagram are: ")
+    for state in states:
+        print(state),
+    sys.exit(0)
     
 def allowed_transitions(diagram):
     # To be done!
     pass
      
-def parse_transition(transition):
-    state1=[]
-    state2=[]
+def parse_transition(diagram, transition):
+    g_state=[]
+    e_state=[]
     chars=list(transition)
     for i in range(len(chars)):
         if chars[i] == '-':
-            state1 = state1 + chars[:i:]
-            state2 = state2 + chars[i+1::]
+            e_state = e_state + chars[:i:]
+            g_state = g_state + chars[i+1::]
             break
-    if state1[0] == state2[0]:
+    if g_state[0] == e_state[0]:
         parity=True
     else:
         parity=False
-
-    transition=[(''.join(state1)), (''.join(state2))]
-    return transition, parity
+    g_state = ''.join(g_state)
+    e_state = ''.join(e_state)
+    found_g, found_e = False, False
+    for state in list(diagram.keys()):
+        if g_state.lower() == state.lower():
+            g_state = state
+            found_g = True
+        if e_state.lower() == state.lower():
+            e_state = state
+            found_e = True
+    if found_g and found_e:
+        transition=[e_state, g_state]
+        return transition, parity
+    else:
+        print("Transition not found!")
+        print("Use -d [electrons] -ls to list transitions.")
+        print("Aborting.")
+        sys.exit(0)
     
-def deltaOctB(ratio, diagram, columns):
-    delta_list = [diagram[i][0] for i in range(len(diagram))]
-    e_states = [diagram[e][columns[0]] for e in range(len(delta_list))]
-    g_states = [diagram[g][columns[1]] for g in range(len(delta_list))]
-    
+def deltaOctB(ratio, diagram, tv1, tv2):
+    delta_list = diagram['deltaB']
+    e_states = diagram[tv2[0]]
+    g_states = diagram[tv1[0]]
+      
     h2B = []
     h2B_o = []    
     h1B = []
@@ -121,15 +132,14 @@ def deltaOctB(ratio, diagram, columns):
     return delta_B, Ev1_B, Ev2_B
              
 def options():
-    print_options = True
-    verbose = False
-    use_file = False    
-    
+    verbose = 1
+    use_file = False
     use_nm = False
     v1=0
     v2=0
+    tv1=0
+    tv2=0
     d_electrons=''
-    transition=''
     
     for arg in range(len(sys.argv)):
     
@@ -138,38 +148,38 @@ def options():
         # the current 'opt' value
         if arg < len(sys.argv)-1:
             val = sys.argv[arg+1]
+        if arg < len(sys.argv)-2:
+            val2 = sys.argv[arg+2]
         else:
             val = 0
+            val2 = 0
         
         if opt == "-d":
             d_electrons = val
-        if opt == "--list-states" or opt == "-ls":
-            list_states(get_diagram(d_electrons))
-            sys.exit(0)
+            if val2 == "--list-states" or val2 == "-ls":
+                list_states(get_diagram(d_electrons))
         if opt == "-v1":
             v1 = val
+            tv1 = val2
         if opt == "-v2":
             v2 = val
-        if opt == "-t" or opt == "--transition":
-            transition=val
+            tv2 = val2
         if opt == "--use-nm":
             use_nm = True
         if opt == "--use-file":
             use_file = True
-        
-        
-        if opt == "-h" or arg == "--help":
+        if opt == "-h" or opt == "--help":
             help()
-            sys.exit(0)
         if opt == "--about":
             about()
-            sys.exit(0)
         if opt == "--quiet" or opt == "-q":
-            print_options = False
+            verbose = 0
         if opt == "--verbose":
-            verbose = True
-    if ((not(use_file)) and d_electrons and v1 and v2):
-        d_electrons=int(d_electrons)
+            verbose = 2
+
+    if d_electrons and v1 and v2 and tv1 and tv2:
+        d_electrons = int(d_electrons)
+        diagram = get_diagram(d_electrons)
         v1=float(v1)
         v2=float(v2)
         if use_nm:
@@ -181,52 +191,44 @@ def options():
         if Ev1 > Ev2:
             a = Ev2
             Ev2 = Ev1
-            Ev1 = a
-        if transition != '':
-            (transition_name, parity) = parse_transition(transition)
-            transition_string = "Transition %s <- %s " % (transition_name[0], transition_name[1])
-            if parity:
-                transition_string = transition_string + "is spin-allowed."
-            else:
-                transition_string = transition_string + "is spin-forbidden."
-      
+            Ev1 = a        
+        tv1, p1 = parse_transition(diagram, tv1)
+        if p1:
+            p1 = "allowed."
         else:
-            #transition_string = "Transition not specified, assuming spin-allowed transitions from ground state."
-            # to be implemented: allowed_transitions(diagram)
-            help()
-            sys.exit(0)
-        if print_options:
+            p1 = "forbidden."
+        
+        tv2, p2 = parse_transition(diagram, tv2)
+        if p2:
+            p2 = "allowed."
+        else:
+            p2 = "forbidden."
+        
+        if verbose:
             print ("Using diagram for d%s complex" % d_electrons)
             print("Ev1 wavenumber is %s cm^-1" % Ev1)
             print("Ev2 wavenumber is %s cm^-1" % Ev2)
+            print("Transition %s<-%s is %s" % (tv1[0], tv1[1], p1))
+            print("Transition %s<-%s is %s" % (tv2[0], tv2[1], p2))
             print("Ev2/Ev1 ratio is %s" % round((Ev2/Ev1), 3))
-            #print transition_string
-
     else:
         help()
-        sys.exit(0)      
-            
-    opts = (Ev1, Ev2, d_electrons, transition, verbose)
+        sys.exit(0)
+    
+    opts = {"Ev1":Ev1, "Ev2":Ev2,"tv1":tv1, "tv2":tv2, "diagram":diagram, "verbose":verbose}
     return opts
     
 ### Entry point ###
 opts = options()
-Ev1 = opts[0]
-Ev2 = opts[1]
-d_electrons = opts[2]
-transition = opts [3]
+Ev1 = opts['Ev1']
+Ev2 = opts['Ev2']
+diagram = opts['diagram']
+tv1 = opts['tv1']
+tv2 = opts['tv2']
 ratio = Ev2/Ev1
-diagram = get_diagram(d_electrons)
-if transition != '':
-    transition, parity = parse_transition(transition)
-
-#else:
-#    transition = allowed_transitions(diagram)
-# implement allowed transitions checking!!
-
-columns = find_transition(diagram, transition)
-print("Calculating ...")
-delta_B, Ev1_B, Ev2_B = deltaOctB(ratio, diagram, columns)
+if opts['verbose']:
+    print("Calculating ...")
+delta_B, Ev1_B, Ev2_B = deltaOctB(ratio, diagram, tv1, tv2)
 B=[]
 E10Dq=[]
 for i in range(len(delta_B)):
@@ -235,6 +237,7 @@ for i in range(len(delta_B)):
     B += [(B1+B2)/2]
     E10Dq += [(delta_B[i]*B[i])]
 
+# modified until here! fix output!
 if len(E10Dq) != 2:
     if len(E10Dq) != 1:
         print("More than two matches found!")
