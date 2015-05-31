@@ -8,7 +8,7 @@ if len(sys.argv) != 3:
 else:
     in_file = sys.argv[1]
     out_path = sys.argv[2]
-print(in_file)
+print("%s -> %s" %(in_file,out_path))
 diagram=numpy.genfromtxt(in_file, names=True)
 col_names=[]
 for name in diagram.dtype.names:
