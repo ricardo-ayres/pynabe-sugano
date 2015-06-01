@@ -5,19 +5,21 @@ import json
 
 ### Function Definitions ###
 def help():
-    print("""Usage: pynabe-sugano.py -d [electrons] -v1 [wavenumber] -v2 [wavenumber] -t [high-energy-excited-state]-[low-energy-excited-state]
+    print("""Usage: pynabe-sugano.py -d [electrons] -v1 [wavenumber] [excited state]-[ground state] -v2 [wavenumber] [excited state]-[ground state]
 Example:
-    ./pynabe-sugano.py -d 6 -v1 467 -v2 333 --use-nm -t 1T2g-1T1g
+    ./pynabe-sugano.py -d 6 -v1 467 1t1g-1a1g -v2 333 1t2g-1a1g --use-nm
+
 Parameters:
     -d      Number of d electrons in the complex (determines what diagram to use)
-    -v1     Lower energy peak value in cm^-1 (can take wavelenght if --use-nm is used)
-    -v2     Higher energy peak value in cm^-1 (can take wavelenght if --use-nm is used)
-    -t      Specify what are the excited states of the desired transitions, separated by a '-'
+    -v1     Lower energy peak value in cm^-1 followed by the transition. (can take wavelenght if --use-nm is used)
+    -v2     Higher energy peak value in cm^-1 followed by the transition. (can take wavelenght if --use-nm is used)
+    Transitions are specified with the excited state followed by the ground state and separated by a '-'. See example above.
+
 Options:
     --help, -h          Display this and quit
     --about             Display about message and quit
     --use-nm            Take wavelenght in nm for v1 and v2 inputs
-    --list-states, -ls  used with -d [electrons] to list what are the states for that diagram
+    --list-states, -ls  used with -d (i.e. -d 2 -ls) to list what are the states for that diagram
     --quiet, -q         Don't print input options, only results
 """)
     sys.exit(0)
@@ -80,9 +82,11 @@ def parse_transition(diagram, transition):
         sys.exit(0)
     
 def deltaOctB(ratio, diagram, tv1, tv2):
+    global verbose
     delta_list = diagram['deltaB']
-    e_states = diagram[tv2[0]]
-    g_states = diagram[tv1[0]]
+    e2_state = diagram[tv2[0]]
+    e1_state = diagram[tv1[0]]
+    ground_state = diagram[tv1[1]]
       
     h2B = []
     h2B_o = []    
@@ -100,8 +104,8 @@ def deltaOctB(ratio, diagram, tv1, tv2):
     index = 0
     for delta in delta_list:
         previous_ratio = current_ratio
-        if g_states[index] != 0:
-            current_ratio = e_states[index]/g_states[index]
+        if e1_state[index] != 0:
+            current_ratio = e2_state[index]/e1_state[index]
         else:
             current_ratio = 0
         
@@ -110,15 +114,26 @@ def deltaOctB(ratio, diagram, tv1, tv2):
         else:
             previous_delta = delta
         
-        if (ratio < current_ratio and ratio > previous_ratio) or (ratio > current_ratio and ratio < previous_ratio):
+        if verbose == 2:
+            if index == 0:
+                print("Searching for interval that contains Ev2/Ev1 = %s" % round(ratio, 3))
+            print("[%s , %s]" % (round(previous_ratio, 3), round(current_ratio, 3))),
+        if verbose == 2 and ground_state[index] != 0:
+            print("<-- Ground state is not zero, skipping."),
+            
+        if ((ratio < current_ratio and ratio > previous_ratio) or (ratio > current_ratio and ratio < previous_ratio)) and (ground_state[index] == 0):
+            if verbose == 2:
+                print("<-- Found!"),
             x += [delta]
             xo += [previous_delta]
             y += [current_ratio]
             yo += [previous_ratio]
-            h2B += [e_states[index]]
-            h2B_o += [e_states[index-1]]
-            h1B += [g_states[index]]
-            h1B_o += [g_states[index-1]]
+            h2B += [e2_state[index]]
+            h2B_o += [e2_state[index-1]]
+            h1B += [e1_state[index]]
+            h1B_o += [e1_state[index-1]]
+        if verbose == 2:
+            print("")
         index += 1
 
     for i in range(len(x)):
@@ -130,104 +145,98 @@ def deltaOctB(ratio, diagram, tv1, tv2):
         Ev1_B += [((m_h1*(delta_B[i]-xo[i]))+h1B_o[i])]
         
     return delta_B, Ev1_B, Ev2_B
-             
-def options():
-    verbose = 1
-    use_file = False
-    use_nm = False
-    v1=0
-    v2=0
-    tv1=0
-    tv2=0
-    d_electrons=''
     
-    for arg in range(len(sys.argv)):
-    
-        opt = sys.argv[arg]
-        # using the next arg (if inside range) in the command as
-        # the current 'opt' value
-        if arg < len(sys.argv)-1:
-            val = sys.argv[arg+1]
-        if arg < len(sys.argv)-2:
-            val2 = sys.argv[arg+2]
-        else:
-            val = 0
-            val2 = 0
-        
-        if opt == "-d":
-            d_electrons = val
-            if val2 == "--list-states" or val2 == "-ls":
-                list_states(get_diagram(d_electrons))
-        if opt == "-v1":
-            v1 = val
-            tv1 = val2
-        if opt == "-v2":
-            v2 = val
-            tv2 = val2
-        if opt == "--use-nm":
-            use_nm = True
-        if opt == "--use-file":
-            use_file = True
-        if opt == "-h" or opt == "--help":
-            help()
-        if opt == "--about":
-            about()
-        if opt == "--quiet" or opt == "-q":
-            verbose = 0
-        if opt == "--verbose":
-            verbose = 2
+### Entry Point ###
+verbose = 1
+use_file = False
+use_nm = False
+v1=0
+v2=0
+tv1=0
+tv2=0
+d_electrons=''
 
-    if d_electrons and v1 and v2 and tv1 and tv2:
-        d_electrons = int(d_electrons)
-        diagram = get_diagram(d_electrons)
-        v1=float(v1)
-        v2=float(v2)
-        if use_nm:
-            Ev1 = round(((10**7)/v1), 3)
-            Ev2 = round(((10**7)/v2), 3)
-        else:
-            Ev1 = v1
-            Ev2 = v2
-        if Ev1 > Ev2:
-            a = Ev2
-            Ev2 = Ev1
-            Ev1 = a        
-        tv1, p1 = parse_transition(diagram, tv1)
-        if p1:
-            p1 = "allowed."
-        else:
-            p1 = "forbidden."
-        
-        tv2, p2 = parse_transition(diagram, tv2)
-        if p2:
-            p2 = "allowed."
-        else:
-            p2 = "forbidden."
-        
-        if verbose:
-            print ("Using diagram for d%s complex" % d_electrons)
-            print("Ev1 wavenumber is %s cm^-1" % Ev1)
-            print("Ev2 wavenumber is %s cm^-1" % Ev2)
-            print("Transition %s<-%s is %s" % (tv1[0], tv1[1], p1))
-            print("Transition %s<-%s is %s" % (tv2[0], tv2[1], p2))
-            print("Ev2/Ev1 ratio is %s" % round((Ev2/Ev1), 3))
+for arg in range(len(sys.argv)):
+
+    opt = sys.argv[arg]
+    # using the next arg (if inside range) in the command as
+    # the current 'opt' value
+    if arg < len(sys.argv)-1:
+        val = sys.argv[arg+1]
+    if arg < len(sys.argv)-2:
+        val2 = sys.argv[arg+2]
     else:
+        val = 0
+        val2 = 0
+    
+    if opt == "-d":
+        d_electrons = val
+        if val2 == "--list-states" or val2 == "-ls":
+            list_states(get_diagram(d_electrons))
+    if opt == "-v1":
+        v1 = val
+        tv1 = val2
+    if opt == "-v2":
+        v2 = val
+        tv2 = val2
+    if opt == "--use-nm":
+        use_nm = True
+    if opt == "--use-file":
+        use_file = True
+    if opt == "-h" or opt == "--help":
         help()
+    if opt == "--about":
+        about()
+    if opt == "--quiet" or opt == "-q":
+        verbose = 0
+    if opt == "--verbose":
+        verbose = 2
+
+if d_electrons and v1 and v2 and tv1 and tv2:
+    d_electrons = int(d_electrons)
+    diagram = get_diagram(d_electrons)
+    v1=float(v1)
+    v2=float(v2)
+    if use_nm:
+        Ev1 = round(((10**7)/v1), 3)
+        Ev2 = round(((10**7)/v2), 3)
+    else:
+        Ev1 = v1
+        Ev2 = v2
+    if Ev1 > Ev2:
+        a = Ev2
+        Ev2 = Ev1
+        Ev1 = a        
+    tv1, p1 = parse_transition(diagram, tv1)
+    if p1:
+        p1 = "allowed."
+    else:
+        p1 = "forbidden."
+    
+    tv2, p2 = parse_transition(diagram, tv2)
+    if p2:
+        p2 = "allowed."
+    else:
+        p2 = "forbidden."
+    if tv1[1] != tv2[1]:
+        print("Ground states are not the same. Aborting.")
         sys.exit(0)
     
-    opts = {"Ev1":Ev1, "Ev2":Ev2,"tv1":tv1, "tv2":tv2, "diagram":diagram, "verbose":verbose}
-    return opts
-    
-### Entry point ###
-opts = options()
-Ev1 = opts['Ev1']
-Ev2 = opts['Ev2']
-diagram = opts['diagram']
-tv1 = opts['tv1']
-tv2 = opts['tv2']
+    if verbose:
+        print ("Using diagram for d%s complex" % d_electrons)
+        print("Ev1 wavenumber is %s cm^-1" % Ev1)
+        print("Ev2 wavenumber is %s cm^-1" % Ev2)
+        print("Transition %s<-%s is %s" % (tv1[0], tv1[1], p1))
+        print("Transition %s<-%s is %s" % (tv2[0], tv2[1], p2))
+        print("Ev2/Ev1 ratio is %s" % round((Ev2/Ev1), 3))
+else:
+    help()
+    sys.exit(0)
+
 ratio = Ev2/Ev1
-if opts['verbose']:
+if verbose:
     print("Calculating ...")
+
 delta_B, Ev1_B, Ev2_B = deltaOctB(ratio, diagram, tv1, tv2)
 B=[]
 E10Dq=[]
@@ -237,29 +246,20 @@ for i in range(len(delta_B)):
     B += [(B1+B2)/2]
     E10Dq += [(delta_B[i]*B[i])]
 
-# modified until here! fix output!
-if len(E10Dq) != 2:
+if len(E10Dq) == 0:
+    print("No matches found! Ratio might be out of diagram range. Use --verbose for more information.")
+    sys.exit(0)
+
+if len(E10Dq) != 1:
+    print("More than one match found!")
+    print("Printing all %s matches:" % len(E10Dq))
+
+for i in range(len(E10Dq)):
     if len(E10Dq) != 1:
-        print("More than two matches found!")
-        print("all %s matches:" % len(E10Dq))
-    for i in E10Dq:
-        if len(E10Dq) != 1:
-            print("Match %s:" % (i+1))
-        print("10Dq/B is %s" % round(delta_B[i], 2))
-        print("Ev1/B is %s and Ev2/B is %s" % (round(Ev1_B[i], 2), round(Ev2_B[i], 2)))
-        print("B Racah parameter is %s" % round(B[i], 2))
-        print("10Dq is %s" % round(E10Dq[i], 2))
-if len(E10Dq) == 2:
-    print("Two matches found!\n")
-    print("Weak field match:")
-    print("10Dq/B is %s" % round(delta_B[0], 2))
-    print("Ev1/B is %s and Ev2/B is %s" % (round(Ev1_B[0], 2), round(Ev2_B[0], 2)))
-    print("B Racah parameter is %s" % round(B[0], 2))
-    print("10Dq is %s \n" % round(E10Dq[0], 2))
-    print("Strong field match:")
-    print("10Dq/B is %s" % round(delta_B[1], 2))
-    print("Ev1/B is %s and Ev2/B is %s" % (round(Ev1_B[1], 2), round(Ev2_B[1], 2)))
-    print("B Racah parameter is %s" % round(B[1], 2))
-    print("10Dq is %s" % round(E10Dq[1], 2))
+        print("Match %s:" % (i+1))
+    print("10Dq/B is %s" % round(delta_B[i], 2))
+    print("Ev1/B is %s and Ev2/B is %s" % (round(Ev1_B[i], 2), round(Ev2_B[i], 2)))
+    print("B Racah parameter is %s" % round(B[i], 2))
+    print("10Dq is %s" % round(E10Dq[i], 2))
 
 
