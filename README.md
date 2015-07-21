@@ -17,7 +17,7 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
    
     Pynabe-sugano is a python script that automates calculations involving 
-Tanabe-Sugano diagrams
+    tanabe-sugano diagrams
 
   The task of finding the ratio of the heights of two lines with a ruler and
 then determining the x and y intercepts in Tanabe-Sugano diagrams is tedious
