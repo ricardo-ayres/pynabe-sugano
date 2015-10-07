@@ -1,3 +1,4 @@
+#!/usr/bin/python2
 ###############################################################################
 #
 #   Pynabe-sugano is a calculator for Tanabe-Sugano diagrams.
@@ -17,8 +18,6 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 ###############################################################################
-
-#!/usr/bin/python2
 
 import sys
 import json
@@ -72,6 +71,7 @@ def list_states(diagram):
     print("Available states in this diagram are: ")
     for state in states:
         print(state),
+    print("\n\nFor more information refer to:\nhttps://en.wikipedia.org/wiki/Tanabe%E2%80%93Sugano_diagram#Tanabe-Sugano_diagrams")
     sys.exit(0)
     
 def allowed_transitions(diagram):
@@ -146,7 +146,7 @@ def deltaOctB(ratio, diagram, tv1, tv2):
         if verbose == 2:
             if index == 0:
                 print("Searching for interval that contains Ev2/Ev1 = %s" % round(ratio, 3))
-            print("[%s , %s]" % (round(previous_ratio, 3), round(current_ratio, 3))),
+            print("[%.3f , %.3f]" % (round(previous_ratio, 3), round(current_ratio, 3))),
         if verbose == 2 and ground_state[index] != 0:
             print("<-- Ground state is not zero, skipping."),
             
@@ -166,6 +166,9 @@ def deltaOctB(ratio, diagram, tv1, tv2):
         index += 1
 
     for i in range(len(x)):
+        if verbose == 2:
+            print("Interpolating from (%.3f , %.3f to (%.3f , %.3f)..." %
+                (round(xo[i], 3), round(yo[i], 3), round(x[i], 3), round(y[i], 3)))
         m_ratio = (y[i]-yo[i])/(x[i]-xo[i])
         delta_B += [(((ratio - yo[i])/m_ratio) + xo[i])]
         m_h2 = (h2B[i]-h2B_o[i])/(x[i]-xo[i])
@@ -199,9 +202,16 @@ for arg in range(len(sys.argv)):
         val2 = 0
     
     if opt == "-d":
-        d_electrons = val
+        
+        if val not in str(range(2,9)):
+            print("Are you sure you need this?\nSee this and try again:\nhttps://en.wikipedia.org/wiki/Tanabe%E2%80%93Sugano_diagram#Unnecessary_diagrams:_d1.2C_d9_and_d10")
+            sys.exit(0)
+        
+        else:
+            d_electrons = val
         if val2 == "--list-states" or val2 == "-ls":
             list_states(get_diagram(d_electrons))
+    
     if opt == "-v1":
         v1 = val
         tv1 = val2
@@ -238,26 +248,26 @@ if d_electrons and v1 and v2 and tv1 and tv2:
         Ev1 = a        
     tv1, p1 = parse_transition(diagram, tv1)
     if p1:
-        p1 = "allowed."
+        p1 = "spin-allowed."
     else:
-        p1 = "forbidden."
+        p1 = "spin-forbidden."
     
     tv2, p2 = parse_transition(diagram, tv2)
     if p2:
-        p2 = "allowed."
+        p2 = "spin-allowed."
     else:
-        p2 = "forbidden."
+        p2 = "spin-forbidden."
     if tv1[1] != tv2[1]:
         print("Ground states are not the same. Aborting.")
         sys.exit(0)
     
     if verbose:
         print ("Using diagram for d%s complex" % d_electrons)
-        print("Ev1 wavenumber is %s cm^-1" % Ev1)
-        print("Ev2 wavenumber is %s cm^-1" % Ev2)
+        print("Ev1 wavenumber is %.2f cm^-1" % Ev1)
+        print("Ev2 wavenumber is %.2f cm^-1" % Ev2)
         print("Transition %s<-%s is %s" % (tv1[0], tv1[1], p1))
         print("Transition %s<-%s is %s" % (tv2[0], tv2[1], p2))
-        print("Ev2/Ev1 ratio is %s" % round((Ev2/Ev1), 3))
+        print("Ev2/Ev1 ratio is %.3f" % round((Ev2/Ev1), 3))
 else:
     help()
     sys.exit(0)
@@ -286,9 +296,9 @@ if len(E10Dq) != 1:
 for i in range(len(E10Dq)):
     if len(E10Dq) != 1:
         print("Match %s:" % (i+1))
-    print("10Dq/B is %s" % round(delta_B[i], 2))
-    print("Ev1/B is %s and Ev2/B is %s" % (round(Ev1_B[i], 2), round(Ev2_B[i], 2)))
-    print("B Racah parameter is %s" % round(B[i], 2))
-    print("10Dq is %s" % round(E10Dq[i], 2))
+    print("10Dq/B is %.2f" % round(delta_B[i], 2))
+    print("Ev1/B is %.2f and Ev2/B is %.2f" % (round(Ev1_B[i], 2), round(Ev2_B[i], 2)))
+    print("B Racah parameter is %.2f" % round(B[i], 2))
+    print("10Dq is %.2f" % round(E10Dq[i], 2))
 
 
